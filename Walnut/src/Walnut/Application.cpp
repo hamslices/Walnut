@@ -20,8 +20,8 @@
 #include "ImGui/Roboto-Regular.embed"
 
 // Lark GUI Font, HamSlices, 10/06/2025
-#include "../../LarkGUI/assets/font/ti-84-plus-calculator-font.embed"
-#include "../../LarkGUI/assets/font/Comfortaa-Regular.embed"
+#include "../../../LarkGUI/assets/font/ti-84-plus-calculator-font.embed"
+#include "../../../LarkGUI/assets/font/Comfortaa-Regular.embed"
 
 extern bool g_ApplicationRunning;
 

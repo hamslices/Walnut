@@ -47,8 +47,8 @@ namespace Walnut {
 
 	}
 
-	Image::Image(std::string_view path)
-		: m_Filepath(path)
+	Image::Image(std::string_view path, ImageFilter filter)
+		: m_Filepath(path), m_Filter(filter) // HamSlices, 10/06/2025
 	{
 		int width, height, channels;
 		uint8_t* data = nullptr;
@@ -72,8 +72,8 @@ namespace Walnut {
 		stbi_image_free(data);
 	}
 
-	Image::Image(uint32_t width, uint32_t height, ImageFormat format, const void* data)
-		: m_Width(width), m_Height(height), m_Format(format)
+	Image::Image(uint32_t width, uint32_t height, ImageFormat format, const void* data, ImageFilter filter)
+		: m_Width(width), m_Height(height), m_Format(format), m_Filter(filter)
 	{
 		AllocateMemory(m_Width * m_Height * Utils::BytesPerPixel(m_Format));
 		if (data)
@@ -141,9 +141,24 @@ namespace Walnut {
 		{
 			VkSamplerCreateInfo info = {};
 			info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-			info.magFilter = VK_FILTER_LINEAR;
-			info.minFilter = VK_FILTER_LINEAR;
-			info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+			
+			// mod block, HamSlices, 10/06/2025
+			if (m_Filter == ImageFilter::Nearest)
+			{
+				// This gives you the sharp, pixelated look
+				info.magFilter = VK_FILTER_NEAREST;
+				info.minFilter = VK_FILTER_NEAREST;
+				info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+			}
+			else
+			{
+				// This is the original behavior (blurry/smooth)
+				info.magFilter = VK_FILTER_LINEAR;
+				info.minFilter = VK_FILTER_LINEAR;
+				info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+			}
+			// end mod block 
+			
 			info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 			info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 			info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;

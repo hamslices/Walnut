@@ -13,11 +13,21 @@ namespace Walnut {
 		RGBA32F
 	};
 
+	// HamSlices, 10/06/2025
+	enum class ImageFilter
+	{
+		Linear = 0,
+		Nearest
+	};
+
 	class Image
 	{
 	public:
 		Image(std::string_view path);
-		Image(uint32_t width, uint32_t height, ImageFormat format, const void* data = nullptr);
+		
+		// HamSlices, 10/06/2025
+		Image(std::string_view path, ImageFilter filter = ImageFilter::Linear);
+		Image(uint32_t width, uint32_t height, ImageFormat format, const void* data = nullptr, ImageFilter filter = ImageFilter::Linear);
 		~Image();
 
 		void SetData(const void* data);
@@ -40,6 +50,9 @@ namespace Walnut {
 		VkSampler m_Sampler = nullptr;
 
 		ImageFormat m_Format = ImageFormat::None;
+		
+		// HamSlices, 10/06/2025
+		ImageFilter m_Filter = ImageFilter::Linear;
 
 		VkBuffer m_StagingBuffer = nullptr;
 		VkDeviceMemory m_StagingBufferMemory = nullptr;
