@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <iostream>   // HamSlices, 10/06/2025
+#include <filesystem> // HamSlices, 10/06/2025
 #include <functional>
 
 #include "imgui.h"
@@ -14,6 +16,24 @@ void check_vk_result(VkResult err);
 
 struct GLFWwindow;
 
+// Mod block, HamSlices, 10/6/2025
+extern ImFont* consoleFont;
+extern ImFont* regularFont;
+extern ImFont* robotoFont;
+
+enum class WalnutCursor
+{
+	Arrow = 0,
+	TextInput,
+	ResizeAll,
+	ResizeNS,
+	ResizeEW,
+	ResizeNESW,
+	ResizeNWSE,
+	Hand
+};
+// end mod block
+
 namespace Walnut {
 
 	struct ApplicationSpecification
@@ -21,6 +41,7 @@ namespace Walnut {
 		std::string Name = "Walnut App";
 		uint32_t Width = 1600;
 		uint32_t Height = 900;
+		bool CustomTitlebar = false; //HamSlices, 10/6/2025
 	};
 
 	class Application
@@ -33,7 +54,7 @@ namespace Walnut {
 
 		void Run();
 		void SetMenubarCallback(const std::function<void()>& menubarCallback) { m_MenubarCallback = menubarCallback; }
-		
+
 		template<typename T>
 		void PushLayer()
 		{
@@ -47,6 +68,26 @@ namespace Walnut {
 
 		float GetTime();
 		GLFWwindow* GetWindowHandle() const { return m_WindowHandle; }
+
+        // mod block, HamSlices, 10/06/2025
+		void Minimize();
+		void Maximize();
+		void Restore();
+		bool IsMaximized() const;
+
+		void GetWindowPosition(int* x, int* y) const;
+		void SetWindowPosition(int x, int y);
+
+		void SetWindowSize(int width, int height);
+		void GetWindowSize(int* width, int* height) const;
+
+		void SetCursor(WalnutCursor cursor);
+		void SetResizing(bool resizing);
+
+		void SetWindowIcon(int width, int height, const unsigned char* pixels);
+
+		void SetFileDropCallback(const std::function<void(const std::vector<std::filesystem::path>&)>& callback);
+		// end mod block
 
 		static VkInstance GetInstance();
 		static VkPhysicalDevice GetPhysicalDevice();

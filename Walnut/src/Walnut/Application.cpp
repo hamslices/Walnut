@@ -14,10 +14,14 @@
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 
-#include <iostream>
+// Removed HamSlices, 10/06/2025
 
 // Emedded font
 #include "ImGui/Roboto-Regular.embed"
+
+// Lark GUI Font, HamSlices, 10/06/2025
+#include "../../LarkGUI/assets/font/ti-84-plus-calculator-font.embed"
+#include "../../LarkGUI/assets/font/Comfortaa-Regular.embed"
 
 extern bool g_ApplicationRunning;
 
@@ -32,6 +36,17 @@ extern bool g_ApplicationRunning;
 #ifdef _DEBUG
 #define IMGUI_VULKAN_DEBUG_REPORT
 #endif
+
+// mod block, HamSlices, 10/06/2025
+ImFont* consoleFont = nullptr;
+ImFont* regularFont = nullptr;
+ImFont* robotoFont  = nullptr;
+
+static ImFont* g_DefaultFont = nullptr;
+
+static GLFWcursor* m_Cursors[8] = { nullptr };
+static bool m_IsResizing = false;
+// end mod block
 
 static VkAllocationCallbacks* g_Allocator = NULL;
 static VkInstance               g_Instance = VK_NULL_HANDLE;
@@ -56,6 +71,8 @@ static std::vector<std::vector<std::function<void()>>> s_ResourceFreeQueue;
 static uint32_t s_CurrentFrameIndex = 0;
 
 static Walnut::Application* s_Instance = nullptr;
+
+static std::function<void(const std::vector<std::filesystem::path>&)> s_FileDropCallback = nullptr; // HamSlices, 10/06/2025
 
 void check_vk_result(VkResult err)
 {
@@ -232,8 +249,15 @@ static void SetupVulkanWindow(ImGui_ImplVulkanH_Window* wd, VkSurfaceKHR surface
 		exit(-1);
 	}
 
+	// Reformated, HamSlices, 10/06/2025
 	// Select Surface Format
-	const VkFormat requestSurfaceImageFormat[] = { VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8_UNORM, VK_FORMAT_R8G8B8_UNORM };
+    const VkFormat requestSurfaceImageFormat[] = {			
+		VK_FORMAT_B8G8R8A8_UNORM,
+		VK_FORMAT_R8G8B8A8_UNORM,
+		VK_FORMAT_B8G8R8_UNORM, 
+		VK_FORMAT_R8G8B8_UNORM
+	};
+
 	const VkColorSpaceKHR requestSurfaceColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 	wd->SurfaceFormat = ImGui_ImplVulkanH_SelectSurfaceFormat(g_PhysicalDevice, wd->Surface, requestSurfaceImageFormat, (size_t)IM_ARRAYSIZE(requestSurfaceImageFormat), requestSurfaceColorSpace);
 
@@ -382,6 +406,19 @@ static void glfw_error_callback(int error, const char* description)
 	fprintf(stderr, "Glfw Error %d: %s\n", error, description);
 }
 
+// added, HamSlices, 10/06/2025
+static void glfw_drop_callback(GLFWwindow* window, int count, const char** paths)
+{
+	if (s_FileDropCallback)
+	{
+		std::vector<std::filesystem::path> path_vector;
+		for (int i = 0; i < count; i++)
+			path_vector.emplace_back(paths[i]);
+
+		s_FileDropCallback(path_vector);
+	}
+}
+
 namespace Walnut {
 
 	Application::Application(const ApplicationSpecification& specification)
@@ -394,6 +431,18 @@ namespace Walnut {
 
 	Application::~Application()
 	{
+		// mod block, HamSlices, 10/06/2025
+		// 1. Clear our custom file drop callback first. This releases its reference to hostLayer.
+		s_FileDropCallback = nullptr;
+
+		// 2. Clear the menubar callback (this was already present and correct).
+		m_MenubarCallback = nullptr;
+
+		// 3. Now, clearing the layer stack will correctly trigger the destruction of hostLayer
+		//    and all its images while the application's resources are still valid.
+		m_LayerStack.clear();
+
+		// 4. Finally, shut down the rest of the application.
 		Shutdown();
 
 		s_Instance = nullptr;
@@ -414,8 +463,15 @@ namespace Walnut {
 			return;
 		}
 
+		// HamSlices, 10/06/2025
+		if (m_Specification.CustomTitlebar)
+			glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 		m_WindowHandle = glfwCreateWindow(m_Specification.Width, m_Specification.Height, m_Specification.Name.c_str(), NULL, NULL);
+
+		// HamSlices, 10/06/2025
+		glfwSetDropCallback(m_WindowHandle, glfw_drop_callback);
 
 		// Setup Vulkan
 		if (!glfwVulkanSupported())
@@ -451,6 +507,9 @@ namespace Walnut {
 		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;         // Enable Multi-Viewport / Platform Windows
 		//io.ConfigViewportsNoAutoMerge = true;
 		//io.ConfigViewportsNoTaskBarIcon = true;
+		
+		// HamSlices, 10/06/2025
+		io.IniFilename = nullptr; //disable default .ini file
 
 		// Setup Dear ImGui style
 		ImGui::StyleColorsDark();
@@ -485,8 +544,30 @@ namespace Walnut {
 		// Load default font
 		ImFontConfig fontConfig;
 		fontConfig.FontDataOwnedByAtlas = false;
-		ImFont* robotoFont = io.Fonts->AddFontFromMemoryTTF((void*)g_RobotoRegular, sizeof(g_RobotoRegular), 20.0f, &fontConfig);
+		robotoFont = io.Fonts->AddFontFromMemoryTTF((void*)g_RobotoRegular, sizeof(g_RobotoRegular), 20.0f, &fontConfig); // HamSlices, 10/06/2025
 		io.FontDefault = robotoFont;
+
+		// mod block HamSlices, 10/06/2025
+		float regularFontSize = 16.0f;
+		regularFont = io.Fonts->AddFontFromMemoryTTF((void*)Comfortaa_Regular, Comfortaa_Regular_size, regularFontSize, &fontConfig);
+
+		if (regularFont) {
+			std::cout << "Successfully loaded embedded regular font." << std::endl;
+		}
+		else {
+			IM_ASSERT(regularFont != nullptr && "Could not load embedded regular font!");
+		}
+
+		float consoleFontSize = 18.0f;
+		consoleFont = io.Fonts->AddFontFromMemoryTTF((void*)ti_84_plus_calculator_font, ti_84_plus_calculator_font_size, consoleFontSize, &fontConfig);
+
+		if (consoleFont) {
+			std::cout << "Successfully loaded embedded console font." << std::endl;
+		}
+		else {
+			IM_ASSERT(consoleFont != nullptr && "Could not load embedded console font!");
+		}
+		// end mod block
 
 		// Upload Fonts
 		{
@@ -517,6 +598,17 @@ namespace Walnut {
 			check_vk_result(err);
 			ImGui_ImplVulkan_DestroyFontUploadObjects();
 		}
+
+		// mod block, HamSlices, 10/06/2025
+		m_Cursors[(int)WalnutCursor::Arrow]      = NULL; // Default
+		m_Cursors[(int)WalnutCursor::TextInput]  = glfwCreateStandardCursor(GLFW_IBEAM_CURSOR);
+		m_Cursors[(int)WalnutCursor::ResizeAll]  = glfwCreateStandardCursor(GLFW_ARROW_CURSOR); // No GLFW_RESIZE_ALL
+		m_Cursors[(int)WalnutCursor::ResizeNS]   = glfwCreateStandardCursor(GLFW_VRESIZE_CURSOR);
+		m_Cursors[(int)WalnutCursor::ResizeEW]   = glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR);
+		m_Cursors[(int)WalnutCursor::ResizeNESW] = glfwCreateStandardCursor(GLFW_RESIZE_NESW_CURSOR);
+		m_Cursors[(int)WalnutCursor::ResizeNWSE] = glfwCreateStandardCursor(GLFW_RESIZE_NWSE_CURSOR);
+		m_Cursors[(int)WalnutCursor::Hand]       = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
+		// end mod block
 	}
 
 	void Application::Shutdown()
@@ -545,11 +637,20 @@ namespace Walnut {
 		CleanupVulkanWindow();
 		CleanupVulkan();
 
+		// HamSlices, 10/06/2025
+		for (int i = 1; i < 8; i++)
+			glfwDestroyCursor(m_Cursors[i]);
+
 		glfwDestroyWindow(m_WindowHandle);
 		glfwTerminate();
 
 		g_ApplicationRunning = false;
 	}
+
+	// HamSlices, 10/06/2025
+	static bool s_IsDragging = false;
+	static double s_InitialMouseX = 0.0, s_InitialMouseY = 0.0;
+	static int s_InitialWindowX = 0, s_InitialWindowY = 0;
 
 	void Application::Run()
 	{
@@ -582,11 +683,11 @@ namespace Walnut {
 					ImGui_ImplVulkan_SetMinImageCount(g_MinImageCount);
 					ImGui_ImplVulkanH_CreateOrResizeWindow(g_Instance, g_PhysicalDevice, g_Device, &g_MainWindowData, g_QueueFamily, g_Allocator, width, height, g_MinImageCount);
 					g_MainWindowData.FrameIndex = 0;
-
+					
 					// Clear allocated command buffers from here since entire pool is destroyed
 					s_AllocatedCommandBuffers.clear();
 					s_AllocatedCommandBuffers.resize(g_MainWindowData.ImageCount);
-
+					
 					g_SwapChainRebuild = false;
 				}
 			}
@@ -598,12 +699,11 @@ namespace Walnut {
 
 			{
 				static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_None;
-
+				
 				// We are using the ImGuiWindowFlags_NoDocking flag to make the parent window not dockable into,
 				// because it would be confusing to have two docking targets within each others.
 				ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDocking;
-				if (m_MenubarCallback)
-					window_flags |= ImGuiWindowFlags_MenuBar;
+				// Removed HamSlices, 10/06/2025
 
 				const ImGuiViewport* viewport = ImGui::GetMainViewport();
 				ImGui::SetNextWindowPos(viewport->WorkPos);
@@ -619,34 +719,24 @@ namespace Walnut {
 				if (dockspace_flags & ImGuiDockNodeFlags_PassthruCentralNode)
 					window_flags |= ImGuiWindowFlags_NoBackground;
 
-				// Important: note that we proceed even if Begin() returns false (aka window is collapsed).
-				// This is because we want to keep our DockSpace() active. If a DockSpace() is inactive,
-				// all active windows docked into it will lose their parent and become undocked.
-				// We cannot preserve the docking relationship between an active window and an inactive docking, otherwise
-				// any change of dockspace/settings would lead to windows being stuck in limbo and never being visible.
+				// 1. We temporarily override the WindowPadding to zero for the main host window.
 				ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-				ImGui::Begin("DockSpace Demo", nullptr, window_flags);
+				ImGui::Begin("DockSpace", nullptr, window_flags); // HamSlices, 10/06/2025
+				// 2. We immediately pop the style back. Now, all child windows (your panels)
+				// will use the correct padding defined in your theme.
 				ImGui::PopStyleVar();
 
-				ImGui::PopStyleVar(2);
+				// Removed, HamSlices, 10/06/2025
 
-				// Submit the DockSpace
-				ImGuiIO& io = ImGui::GetIO();
-				if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable)
-				{
-					ImGuiID dockspace_id = ImGui::GetID("VulkanAppDockspace");
-					ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
-				}
+				ImGui::PopStyleVar(2); // Pop WindowRounding and WindowBorderSize
 
-				if (m_MenubarCallback)
-				{
-					if (ImGui::BeginMenuBar())
-					{
-						m_MenubarCallback();
-						ImGui::EndMenuBar();
-					}
-				}
+				// Removed, HamSlices, 10/06/2025
 
+				ImGuiID dockspace_id = ImGui::GetID("VulkanAppDockspace");
+				ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
+
+				// Your HostLayer renders its UI (title bar, menus, panels) into the dockspace.
+				// Because we popped the style, they will all have the correct theme padding.
 				for (auto& layer : m_LayerStack)
 					layer->OnUIRender();
 
@@ -680,7 +770,7 @@ namespace Walnut {
 			m_TimeStep = glm::min<float>(m_FrameTime, 0.0333f);
 			m_LastFrameTime = time;
 		}
-
+		
 	}
 
 	void Application::Close()
@@ -692,6 +782,81 @@ namespace Walnut {
 	{
 		return (float)glfwGetTime();
 	}
+
+// mod block, HamSlices, 10/06/2025
+	void Application::Minimize()
+	{
+		glfwIconifyWindow(m_WindowHandle);
+	}
+
+	void Application::Maximize()
+	{
+		glfwMaximizeWindow(m_WindowHandle);
+	}
+
+	void Application::Restore()
+	{
+		glfwRestoreWindow(m_WindowHandle);
+	}
+
+	bool Application::IsMaximized() const
+	{
+		return (bool)glfwGetWindowAttrib(m_WindowHandle, GLFW_MAXIMIZED);
+	}
+
+	void Application::GetWindowPosition(int* x, int* y) const
+	{
+		glfwGetWindowPos(m_WindowHandle, x, y);
+	}
+
+	void Application::SetWindowPosition(int x, int y)
+	{
+		glfwSetWindowPos(m_WindowHandle, x, y);
+	}
+
+	void Application::SetWindowSize(int width, int height)
+	{
+		glfwSetWindowSize(m_WindowHandle, width, height);
+	}
+
+	void Application::GetWindowSize(int* width, int* height) const
+	{
+		glfwGetWindowSize(m_WindowHandle, width, height);
+	}
+
+	void Application::SetCursor(WalnutCursor cursor)
+	{
+		glfwSetCursor(m_WindowHandle, m_Cursors[(int)cursor]);
+	}
+
+	void Application::SetResizing(bool resizing)
+	{
+		m_IsResizing = resizing;
+	}
+
+	void Walnut::Application::SetWindowIcon(int width, int height, const unsigned char* pixels)
+	{
+		GLFWimage images[1];
+		images[0].width = width;
+		images[0].height = height;
+		images[0].pixels = (unsigned char*)pixels; // GLFW expects a non-const pointer
+
+		if (pixels)
+		{
+			glfwSetWindowIcon(m_WindowHandle, 1, images);
+		}
+		else
+		{
+			std::cerr << "Warning: SetWindowIcon called with null pixel data." << std::endl;
+		}
+	}
+
+	void Application::SetFileDropCallback(const std::function<void(const std::vector<std::filesystem::path>&)>& callback)
+	{
+		s_FileDropCallback = callback;
+	}
+
+// end mod block
 
 	VkInstance Application::GetInstance()
 	{
